@@ -54,6 +54,9 @@ img_fondo = pygame.transform.scale(img_fondo,SIZE_SCREEN)
 img_start_button = pygame.image.load("./src/assets/images/start_button.png")
 img_start_button = pygame.transform.scale(img_start_button,START_BUTTON_SIZE)
 
+icono = pygame.image.load("./src/assets/images/start_button.png")
+pygame.display.set_icon(icono)
+
 NEWCOINEVENT = USEREVENT + 1
 TIMEOUT = USEREVENT + 2
 
@@ -64,9 +67,7 @@ pygame.display.set_caption("Jogo bonito")
 
 clock = pygame.time.Clock()
 
-
 # font = pygame.font.SysFont(None, 36)
-# font = pygame.font.SysFont("Ba", 36)
 font = pygame.font.Font("./src/assets/fonts/dash-horizon.otf", 36)
 coins_colision = 0
 score_text = font.render(f"Coins colisionados: {coins_colision}",True,BLUE)
@@ -86,15 +87,12 @@ pygame.time.set_timer(NEWCOINEVENT,5000)
 #musica para todo el juego
 pygame.mixer.music.load("./src/assets/music/musica_fondo.mp3")
 pygame.mixer.music.set_volume(0.1)
-
-high_score = 0
+high_score = 0  
 while True:
     pygame.mouse.set_visible(True)
     #pantalla inicio
     SCREEN.fill(BLACK)
     mostrar_texto(SCREEN,POSICION_TITLE,"Asteroides",font,RED)
-    # mostrar_texto(SCREEN,(WIDTH // 2,HEIGHT - 50),"Presiones espacio para comenzar",font,BLUE)
-    # wait_user(K_SPACE)
     rect_start_button = img_start_button.get_rect(center = CENTER_SCREEN)
     SCREEN.blit(img_start_button , rect_start_button)
     pygame.display.flip()
@@ -111,12 +109,14 @@ while True:
     move_right = True
     move_up = True
     move_down = True
-
+    #puntajes
     score = 0
     counter_colision = 0
+    laser = None
+    lives = 3
 
     pygame.mixer.music.play()
-    pygame.time.set_timer(TIMEOUT,10000,1)
+    pygame.time.set_timer(TIMEOUT,TIME_GAME,1)
     in_pause = True
     is_running = True
     while is_running:
@@ -126,6 +126,10 @@ while True:
                 is_running = False
             #teclas awsd
             if event.type == KEYDOWN:
+                if event.key == K_f:
+                    if not laser:
+                        laser = create_laser(block["rect"].midtop)
+
                 if event.key == K_DOWN or event.key == K_s:
                     move_down = True
                     move_up = False
@@ -179,7 +183,7 @@ while True:
 
             if event.type == TIMEOUT:
                 is_running = False
-
+        #movimientos
         if move_left and block["rect"].left > 0:
             block["rect"].x -= SPEED
             if block["rect"].left < 0:
@@ -199,17 +203,34 @@ while True:
 
         pygame.mouse.set_pos(block["rect"].center)
 
+        for coin in coins:
+            coin["rect"].move_ip(0,coin["speed_y"])
+            if coin["rect"].top > HEIGHT:
+                coin["rect"].bottom = 0
+
+        if laser:
+            laser["rect"].move_ip(0,-laser["speed"])
+            if laser["rect"].bottom < 0:
+                laser = None
+
+        for coin in coins[:]:
+            if laser:
+                if detectar_colision(coin["rect"],laser["rect"]):
+                    colision_sonido.play()
+                    coins.remove(coin)
+                    laser = None
+                    score += 1
+                    if len(coins) == 0:
+                        exito_sonido.play()
+                        cargar_coins(coins,INITIAL_COINS,img_asteroide)
+
         for coin in coins[:]:
             if detectar_colision_circulos(coin["rect"],block["rect"]):
-                colision_sonido.play()
-                counter_colision = 10
-                score += 1
                 coins.remove(coin)
-                coins_colision += 1
-                score_text = font.render(f"Coins colisionados: {coins_colision}",True,BLUE)
-                if len(coins) == 0:
-                    exito_sonido.play()
-                    cargar_coins(coins,INITIAL_COINS,img_asteroide)
+                lives -= 1
+                if lives == 0:
+                    is_running = False
+
 
         if counter_colision > 10:
             counter_colision -= 1
@@ -220,6 +241,8 @@ while True:
 
         SCREEN.blit(block["img"],block["rect"])
 
+        if laser:
+            pygame.draw.rect(SCREEN,laser["color"],laser["rect"])
 
         for coin in coins:
             if coin["img"]:
@@ -227,7 +250,8 @@ while True:
             else:    
                 pygame.draw.rect(SCREEN, coin["color"], coin["rect"],coin["borde"],coin["radio"])
 
-        mostrar_texto(SCREEN,POSICION_SCORE, f"Score: {coins_colision}",font,BLUE)
+        mostrar_texto(SCREEN,POSICION_SCORE, f"Score: {score}",font,BLUE)
+        mostrar_texto(SCREEN,LAST_SCORE, f"Lives: {lives}",font,CYAN)
         #actualizar pantalla
         pygame.display.flip()
 
